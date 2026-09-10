@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Media Video Converter</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { text-align: center; background: #1e293b; padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 420px; max-width: calc(100% - 40px); }
+        .select-box { margin-bottom: 20px; text-align: left; }
+        label { font-size: 14px; color: #94a3b8; display: block; margin-bottom: 8px; }
+        select { width: 100%; padding: 12px; background: #0f172a; border: 2px solid #334155; border-radius: 8px; color: white; font-size: 16px; outline: none; transition: 0.3s; cursor: pointer; box-sizing: border-box; }
+        select:focus { border-color: #38bdf8; }
+        .drop-zone { border: 2px dashed #38bdf8; border-radius: 8px; padding: 40px 20px; cursor: pointer; transition: 0.3s; }
+        .drop-zone.hover { background: #334155; border-color: #0ea5e9; }
+        .spinner { display: none; margin: 20px auto; border: 4px solid rgba(255,255,255,0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #38bdf8; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #status { min-height: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Social Media Video Converter</h2>
+        <p style="color: #94a3b8; font-size: 14px; margin-bottom: 25px;">
+            Resize your horizontal media into custom platform crops instantly.
+        </p>
+
+        <div class="select-box">
+            <label for="ratioSelect">Choose Target Dimension:</label>
+            <select id="ratioSelect">
+                <option value="9_16">9:16 - TikTok / Shorts / Reels</option>
+                <option value="1_1">1:1 - Instagram Square Post</option>
+                <option value="4_5">4:5 - Instagram Vertical Feed</option>
+            </select>
+        </div>
+
+        <div class="drop-zone" id="dropZone">Drag & Drop file here or click to upload</div>
+        <input type="file" id="fileInput" accept="image/*,video/*" style="display: none;">
+        <div class="spinner" id="spinner"></div>
+        <p id="status" style="color: #64748b; font-size: 14px; margin-top: 15px;"></p>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const spinner = document.getElementById('spinner');
+        const status = document.getElementById('status');
+        const ratioSelect = document.getElementById('ratioSelect');
+
+        dropZone.onclick = () => fileInput.click();
+
+        dropZone.ondragover = (e) => {
+            e.preventDefault();
+            dropZone.classList.add('hover');
+        };
+
+        dropZone.ondragleave = () => dropZone.classList.remove('hover');
+
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('hover');
+            processFile(e.dataTransfer.files[0]);
+        };
+
+        fileInput.onchange = (e) => processFile(e.target.files[0]);
+
+        async function processFile(file) {
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('ratio', ratioSelect.value);
+
+            spinner.style.display = 'block';
+            status.style.color = "#64748b";
+            status.innerText = "Processing media... This may take a minute.";
+
+            try {
+                // Same-origin request: FastAPI serves this page and the /upload endpoint.
+                const response = await fetch('/upload', {
+    method: 'POST',
+    body: formData
+});
+
+const contentType = response.headers.get('content-type') || '';
+
+if (!response.ok) {
+    throw new Error(`Server error: ${response.status}`);
+}
+
+if (contentType.includes('application/json')) {
+    const data = await response.json();
+    throw new Error(data.error || 'Conversion failed');
+}
+
+const blob = await response.blob();
+
+if (blob.size === 0) {
+    throw new Error('The server returned an empty file.');
+}
+
+const url = window.URL.createObjectURL(blob);
+const a = document.createElement('a');
+
+a.href = url;
+a.download = file.type.startsWith('video/')
+    ? 'converted_video.mp4'
+    : 'converted_image.jpg';
+
+document.body.appendChild(a);
+a.click();
+a.remove();
+
+window.URL.revokeObjectURL(url);
+
+status.style.color = "#34d399";
+status.innerText = "Download complete!";
+            } catch (err) {
+                console.error(err);
+                status.style.color = "#f87171";
+                status.innerText = err.message || "An error occurred during conversion.";
+            } finally {
+                spinner.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
